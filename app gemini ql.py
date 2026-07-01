@@ -11,9 +11,9 @@ st.title("🚧 HỆ THỐNG QUẢN LÝ TIẾN ĐỘ & GIAO VIỆC")
 if not os.path.exists("stored_files"):
     os.makedirs("stored_files")
 
-# 2. Giả lập Cơ sở dữ liệu (Database) bằng Session State để chạy thử
-if "tasks" not in st.state:
-    st.state.tasks = [
+# 2. Lưu trữ Cơ sở dữ liệu (Database) bằng Session State chính xác
+if "tasks" not in st.session_state:
+    st.session_state.tasks = [
         {
             "id": 1,
             "task_name": "Lắp trục đứng MEP tầng 3",
@@ -25,8 +25,8 @@ if "tasks" not in st.state:
             "updated_by": "Hệ thống"
         }
     ]
-if "notifications" not in st.state:
-    st.state.notifications = ["Hệ thống khởi tạo thành công!"]
+if "notifications" not in st.session_state:
+    st.session_state.notifications = ["Hệ thống khởi tạo thành công!"]
 
 # Danh sách 21 nhân viên của Sir để phân quyền chọn nhanh
 DANH_SACH_NV = [f"Nhân viên {i}" for i in range(1, 22)]
@@ -38,7 +38,7 @@ current_user = st.sidebar.selectbox("Chọn tên của ngài/nhân viên:", DANH
 
 # --- KHU VỰC 1: BẢNG TIN THÔNG BÁO HAI CHIỀU ---
 st.subheader("🔔 Bảng Tin Thông Báo Mới Nhất")
-for notif in st.state.notifications[-3:]: # Hiện 3 thông báo mới nhất
+for notif in st.session_state.notifications[-3:]: # Hiện 3 thông báo mới nhất
     st.info(notif)
 
 st.markdown("---")
@@ -54,8 +54,8 @@ if current_user == "Quản lý (Sir)":
         submit_btn = st.form_submit_button("Phát lệnh giao việc")
         
         if submit_btn and t_name:
-            new_id = len(st.state.tasks) + 1
-            st.state.tasks.append({
+            new_id = len(st.session_state.tasks) + 1
+            st.session_state.tasks.append({
                 "id": new_id,
                 "task_name": t_name,
                 "assigned_to": t_assign,
@@ -65,13 +65,13 @@ if current_user == "Quản lý (Sir)":
                 "file_path": None,
                 "updated_by": "Quản lý (Sir)"
             })
-            st.state.notifications.append(f"📢 Sir vừa giao việc mới: '{t_name}' cho {t_assign}!")
+            st.session_state.notifications.append(f"📢 Sir vừa giao việc mới: '{t_name}' cho {t_assign}!")
             st.success(f"Đã giao việc thành công cho {t_assign}!")
             st.rerun()
 
 # --- KHU VỰC 3: DÀNH CHO NHÂN VIÊN - CẬP NHẬT TIẾN ĐỘ & ĐÍNH KÈM FILE ---
 st.subheader("📋 Danh Sách & Tiến Độ Hạng Mục")
-df = pd.DataFrame(st.state.tasks)
+df = pd.DataFrame(st.session_state.tasks)
 
 for index, row in df.iterrows():
     with st.expander(f"📌 {row['task_name']} - [{row['status']}]"):
@@ -97,11 +97,11 @@ for index, row in df.iterrows():
                         f.write(uploaded_file.getbuffer())
                 
                 # Cập nhật vào cơ sở dữ liệu
-                st.state.tasks[index]['status'] = new_status
-                st.state.tasks[index]['file_path'] = saved_path
-                st.state.tasks[index]['updated_by'] = current_user
+                st.session_state.tasks[index]['status'] = new_status
+                st.session_state.tasks[index]['file_path'] = saved_path
+                st.session_state.tasks[index]['updated_by'] = current_user
                 
                 # Bắn thông báo hai chiều cho cả hệ thống biết
-                st.state.notifications.append(f"🔄 {current_user} đã cập nhật tiến độ '{row['task_name']}' thành: {new_status}!")
+                st.session_state.notifications.append(f"🔄 {current_user} đã cập nhật tiến độ '{row['task_name']}' thành: {new_status}!")
                 st.success("Hệ thống đã ghi nhận báo cáo của ngài!")
                 st.rerun()
