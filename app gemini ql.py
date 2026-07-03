@@ -2,19 +2,34 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+import base64
 
-# 1. Cấu hình giao diện chuẩn di động & công trường
+# 1. CẤU HÌNH GIAO DIỆN & ÉP XOÁ SẠCH BIỂU TƯỢNG STREAMLIT MẶC ĐỊNH
 st.set_page_config(page_title="Hệ Thống Quản Lý MEP Nội Bộ", layout="centered")
-st.title("🚧 HỆ THỐNG QUẢN LÝ TIẾN ĐỘ MEP PRO V1")
 
-# Tạo hạ tầng lưu trữ
+# Đoạn mã CSS chuyên sâu để giấu nút vương miện đỏ ở góc phải, thanh menu và footer ẩn danh
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            .viewerBadge_container__1QSob {display: none !important;}
+            .st-emotion-cache-1wbqy5l {display: none !important;}
+            button[title="View source code"] {display: none !important;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+st.title("🚧 HỆ THỐNG ĐIỀU HÀNH MEP - PRO V2")
+
+# Tạo hạ tầng lưu trữ dữ liệu vĩnh viễn
 if not os.path.exists("stored_files"):
     os.makedirs("stored_files")
 
 DB_USERS_PATH = "stored_files/db_users.csv"
 DB_TASKS_PATH = "stored_files/db_tasks.csv"
 
-# 2. KHỞI TẠO HỆ CƠ SỞ DỮ LIỆU CÔNG TRƯỜNG VĨNH VIỄN
+# 2. KHỞI TẠO CƠ SỞ DỮ LIỆU CHẠY NGẦM
 if not os.path.exists(DB_USERS_PATH):
     init_users = {
         "tai_khoan": ["Sir", "PhoBan_MEP", "KeToan_DA"],
@@ -42,14 +57,29 @@ if not os.path.exists(DB_TASKS_PATH):
     }]
     pd.DataFrame(init_tasks).to_csv(DB_TASKS_PATH, index=False, encoding='utf-8-sig')
 
-# Tải dữ liệu ngầm lên bộ nhớ App
 df_users = pd.read_csv(DB_USERS_PATH, dtype=str)
 df_tasks = pd.read_csv(DB_TASKS_PATH, dtype=str)
 
+# Khởi tạo bộ nhớ thông báo trong phiên chạy
 if "notifications" not in st.session_state:
-    st.session_state.notifications = ["Hệ thống điều hành MEP vĩnh viễn sẵn sàng!"]
+    st.session_state.notifications = ["Hệ thống điều hành MEP bảo mật sẵn sàng vĩnh viễn!"]
+if "last_task_count" not in st.session_state:
+    st.session_state.last_task_count = len(df_tasks)
+if "trigger_sound" not in st.session_state:
+    st.session_state.trigger_sound = False
 
-# 3. MÔ ĐUN BẢO MẬT VÀ ĐĂNG NHẬP
+# HÀM PHÁT ÂM THANH THÔNG BÁO TỰ ĐỘNG KHÔNG CẦN ZALO
+def play_alert_sound():
+    # Sử dụng âm thanh Ting tinh ngắn, gọn dạng cơ bản, nhúng trực tiếp bằng HTML5 công trường
+    sound_html = """
+    <iframe src="https://assets.mixkit.co/active_storage/sfx/2869/2869-500.wav" allow="autoplay" style="display:none" id="iframeAudio"></iframe>
+    <audio autoplay style="display:none">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-500.wav" type="audio/wav">
+    </audio>
+    """
+    st.markdown(sound_html, unsafe_allow_html=True)
+
+# 3. MÔ ĐUN ĐĂNG NHẬP BẢO MẬT TUYỆT ĐỐI
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_current" not in st.session_state:
@@ -73,7 +103,7 @@ if not st.session_state.logged_in:
                     st.success("Đăng nhập thành công!")
                     st.rerun()
                 else:
-                    st.error("🛑 Tài khoản đã bị Sir đình chỉ truy cập!")
+                    st.error("🛑 Tài khoản này đã bị Sir đình chỉ truy cập!")
             else:
                 st.error("Mật khẩu không chính xác!")
         else:
@@ -89,8 +119,18 @@ if st.sidebar.button("Đăng xuất khỏi hệ thống"):
     st.session_state.user_role = None
     st.rerun()
 
+# --- CƠ CHẾ ĐÓN ĐẦU THÔNG BÁO TỰ ĐỘNG ---
+# Kiểm tra nếu số lượng đầu việc tăng lên (Sir vừa giao việc mới), tự động hú còi thông báo
+if len(df_tasks) > st.session_state.last_task_count:
+    st.session_state.last_task_count = len(df_tasks)
+    st.session_state.trigger_sound = True
+
+if st.session_state.trigger_sound:
+    play_alert_sound()
+    st.session_state.trigger_sound = False # Reset trạng thái còi còi
+
 # --- BẢNG TIN THÔNG BÁO TỰ ĐỘNG ---
-st.subheader("🔔 Bảng Tin Hiện Trường")
+st.subheader("🔔 Bảng Tin Hiện Trường Tức Thời")
 for notif in st.session_state.notifications[-2:]:
     st.info(notif)
 st.markdown("---")
@@ -112,7 +152,7 @@ if st.session_state.user_role == "admin":
             df_users.loc[df_users["tai_khoan"] == selected_user, "quyen"] = new_role
             df_users.loc[df_users["tai_khoan"] == selected_user, "trang_thai"] = new_status
             df_users.to_csv(DB_USERS_PATH, index=False, encoding='utf-8-sig')
-            st.session_state.notifications.append(f"🛠️ Sir vừa cập nhật tài khoản '{selected_user}' thành [{new_status}]")
+            st.session_state.notifications.append(f"🛠️ Sir vừa can thiệp tài khoản '{selected_user}'")
             st.success("Đã ghi nhận thay đổi nhân sự!")
             st.rerun()
 
@@ -154,7 +194,6 @@ if st.session_state.user_role in ["admin", "dac_biet"]:
     c3.metric("🚨 Sự cố", len(df_tasks[df_tasks["status"] == "Đang gặp sự cố"]))
     c4.metric("Hoàn thành", len(df_tasks[df_tasks["status"] == "Đã hoàn thành"]))
     
-    # Bộ lọc nhanh theo nhân viên dành cho Quản lý
     st.markdown("**Bộ lọc xem nhanh theo nhân sự:**")
     filter_nv = st.selectbox("Chọn nhân viên để xem tiến độ riêng biệt:", ["Tất cả nhân viên"] + df_users[df_users["quyen"] == "nhan_vien"]["tai_khoan"].tolist())
     if filter_nv != "Tất cả nhân viên":
@@ -163,38 +202,37 @@ if st.session_state.user_role in ["admin", "dac_biet"]:
         df_display = df_tasks
     st.markdown("---")
 else:
-    # Nếu là nhân viên thường, chỉ hiển thị những việc được giao
     df_display = df_tasks[df_tasks["assigned_to"] == st.session_state.user_current]
 
 
-# --- KHU VỰC 3: HIỂN THỊ CHI TIẾT CÔNG VIỆC VÀ BÁO CÁO ---
-st.subheader("📋 Chi Tiết Hạng Hục Thi Công")
+# --- KHU VỰC 3: HIỂN THỊ CHI TIẾT CÔNG VIỆC VÀ BÁO CÁO CÔNG TRƯỜNG ---
+st.subheader("📋 Chi Tiết Hạng Mục Thi Công")
 
 if not df_display.empty:
     for index, row in df_display.iterrows():
-        # Tìm lại index gốc trong file tổng để cập nhật chính xác
         orig_index = df_tasks[df_tasks["id"] == row["id"]].index[0]
         
         status_colors = {"Chờ triển khai": "⚪", "Đang triển khai": "🔵", "Đang gặp sự cố": "🔴", "Đã hoàn thành": "🟢"}
         icon = status_colors.get(row['status'], "📌")
+        
+        # Thiết kế cảnh báo nhấp nháy màu đỏ trực quan nếu hạng mục gặp sự cố
+        if row['status'] == "Đang gặp sự cố":
+            st.markdown(f"<div style='padding:10px; background-color:#ffcccc; border-left: 6px solid red; border-radius:4px; margin-bottom:10px;'>🚨 <b>CẢNH BÁO KHẨN CẤP:</b> Đầu việc '{row['task_name']}' đang gặp sự cố kỹ thuật!</div>", unsafe_allow_html=True)
         
         with st.expander(f"{icon} {row['task_name']} - [{row['status']}]"):
             st.write(f"👷 **Phụ trách:** {row['assigned_to']}")
             st.write(f"📅 **Hạn cuối (Deadline):** {row['deadline']}")
             st.write(f"📝 **Chỉ thị kỹ thuật:** {row['note']}")
             
-            # Kiểm tra ảnh/file hiện trường
             if pd.notna(row['file_path']) and str(row['file_path']) != "":
                 full_path = str(row['file_path'])
                 if os.path.exists(full_path):
                     st.write(f"📂 **Ảnh hiện trường mới nhất:** `{full_path.split('/')[-1]}`")
-                    # Nếu là ảnh png hoặc jpg thì hiển thị xem trước luôn trên màn hình
                     if full_path.lower().endswith(('.png', '.jpg', '.jpeg')):
-                        st.image(full_path, caption="Ảnh thực tế hiện trường gửi về", use_container_width=True)
+                        st.image(full_path, use_container_width=True)
                     with open(full_path, "rb") as file_bytes:
-                        st.download_button("Tải file/ảnh nghiệm thu", data=file_bytes, file_name=full_path.split('/')[-1], key=f"dl_{row['id']}")
+                        st.download_button("Tải ảnh nghiệm thu", data=file_bytes, file_name=full_path.split('/')[-1], key=f"dl_{row['id']}")
             
-            # Mở cổng báo cáo cho Sir hoặc Đúng nhân viên được giao việc
             if st.session_state.user_role == "admin" or st.session_state.user_current == row['assigned_to']:
                 st.markdown("---")
                 st.markdown("**⚙️ BÁO CÁO TIẾN ĐỘ THỰC TẾ:**")
@@ -207,7 +245,6 @@ if not df_display.empty:
                 if st.button("Gửi báo cáo về hệ thống", key=f"btn_{row['id']}"):
                     saved_path = row['file_path']
                     if uploaded_file is not None:
-                        # Chuẩn hóa tên file ảnh tự động tránh trùng lặp trùng tên
                         ext = os.path.splitext(uploaded_file.name)[1]
                         date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
                         clean_task_name = "".join([c for c in row['task_name'] if c.isalnum() or c in [' ', '_']]).replace(' ', '_')
@@ -217,7 +254,6 @@ if not df_display.empty:
                         with open(saved_path, "wb") as f:
                             f.write(uploaded_file.getbuffer())
                     
-                    # Ghi đè cập nhật vào database tổng
                     df_tasks.loc[orig_index, 'status'] = new_status
                     df_tasks.loc[orig_index, 'file_path'] = saved_path
                     df_tasks.loc[orig_index, 'updated_by'] = str(st.session_state.user_current)
@@ -227,4 +263,4 @@ if not df_display.empty:
                     st.success("Đã đồng bộ báo cáo thành công!")
                     st.rerun()
 else:
-    st.write("Không tìm thấy đầu việc nào trong bộ lọc này.")
+    st.write("Không tìm thấy đầu việc nào.")
